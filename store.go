@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 )
 
@@ -93,7 +95,13 @@ func (s *FilesStore) Get(alias string) (string, bool) {
 }
 
 func (s *FilesStore) Set(alias, url string) error {
-	filePath := filepath.Join(s.directoryPath, alias)
+	if strings.ContainsRune(alias, filepath.Separator) {
+		return fmt.Errorf("invalid alias: %s", alias)
+	}
+	if strings.ContainsRune(alias, '.') {
+		return fmt.Errorf("invalid alias: %s", alias)
+	}
+	filePath := filepath.Clean(filepath.Join(s.directoryPath, alias))
 	return os.WriteFile(filePath, []byte(url), 0644)
 }
 
