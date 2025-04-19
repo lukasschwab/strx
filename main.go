@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 const ApplicationName = "strx"
@@ -13,6 +14,7 @@ var urlStore Store
 
 func main() {
 	app := fiber.New()
+	app.Use(logger.New())
 
 	// Display all aliases
 	app.Get("/", func(c *fiber.Ctx) error {
