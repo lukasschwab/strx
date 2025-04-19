@@ -18,7 +18,15 @@ func main() {
 
 	// Display all aliases
 	app.Get("/", func(c *fiber.Ctx) error {
-		return c.JSON(urlStore.All())
+		all := urlStore.All()
+
+		switch c.Accepts("html", "json") {
+		case "json":
+			return c.JSON(all)
+		default:
+			c.Set("Content-Type", "text/html; charset=utf-8")
+			return HTML(all, c)
+		}
 	})
 
 	// Create a new alias
