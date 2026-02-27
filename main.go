@@ -1,11 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
-
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
+	"net/http"
+	"strings"
+	"time"
 )
 
 const ApplicationName = "strx"
@@ -13,62 +14,8 @@ const ApplicationName = "strx"
 var urlStore Store
 
 func main() {
-	app := fiber.New()
-	app.Use(logger.New())
-
-	// Display all aliases
-	app.Get("/", func(c *fiber.Ctx) error {
-		all := urlStore.All()
-
-		switch c.Accepts("html", "json") {
-		case "json":
-			return c.JSON(all)
-		default:
-			c.Set("Content-Type", "text/html; charset=utf-8")
-			return HTML(all, c)
-		}
-	})
-
-	// Create a new alias
-	app.Post("/create", func(c *fiber.Ctx) error {
-		type Request struct {
-			URL   string `json:"url"`
-			Alias string `json:"alias,omitempty"`
-		}
-
-		req := new(Request)
-		if err := c.BodyParser(req); err != nil {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid request"})
-		}
-
-		if req.URL == "" {
-			return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "URL is required"})
-		}
-
-		alias := req.Alias
-		if alias == "" {
-			word1, word2 := randomWords()
-			alias = word1 + "-" + word2
-		}
-
-		urlStore.Set(alias, req.URL)
-		return c.JSON(fiber.Map{"alias": alias, "url": req.URL})
-	})
-
-	// Resolve an alias
-	app.Get("/:alias", func(c *fiber.Ctx) error {
-		alias := c.Params("alias")
-
-		url, exists := urlStore.Get(alias)
-		if !exists {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Alias not found"})
-		}
-		return c.Redirect(url, fiber.StatusMovedPermanently)
-	})
-
 	port := flag.String("port", "3000", "Port to run the server on")
 	store := flag.String("store", "file", "Store type: memory or file")
-
 	flag.Parse()
 
 	if *store == "file" {
@@ -80,5 +27,94 @@ func main() {
 		urlStore = NewInMemoryStore()
 	}
 
-	app.Listen(":" + *port)
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("GET /", handleIndex)
+	mux.HandleFunc("POST /create", handleCreate)
+	mux.HandleFunc("GET /{alias}", handleResolve)
+
+	handler := loggingMiddleware(mux)
+
+	addr := ":" + *port
+	log.Printf("Listening on %s", addr)
+	if err := http.ListenAndServe(addr, handler); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func loggingMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		next.ServeHTTP(w, r)
+		log.Printf("%s %s %s", r.Method, r.URL.Path, time.Since(start))
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+func acceptsJSON(r *http.Request) bool {
+	accept := r.Header.Get("Accept")
+	return strings.Contains(accept, "application/json")
+}
+
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+	// Only match exact root path
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	all := urlStore.All()
+
+	if acceptsJSON(r) {
+		writeJSON(w, http.StatusOK, all)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := HTML(all, w); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func handleCreate(w http.ResponseWriter, r *http.Request) {
+	type Request struct {
+		URL   string `json:"url"`
+		Alias string `json:"alias,omitempty"`
+	}
+
+	req := new(Request)
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+		return
+	}
+
+	if req.URL == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "URL is required"})
+		return
+	}
+
+	alias := req.Alias
+	if alias == "" {
+		word1, word2 := randomWords()
+		alias = word1 + "-" + word2
+	}
+
+	urlStore.Set(alias, req.URL)
+	writeJSON(w, http.StatusOK, map[string]string{"alias": alias, "url": req.URL})
+}
+
+func handleResolve(w http.ResponseWriter, r *http.Request) {
+	alias := r.PathValue("alias")
+
+	url, exists := urlStore.Get(alias)
+	if !exists {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "Alias not found"})
+		return
+	}
+	http.Redirect(w, r, url, http.StatusMovedPermanently)
 }
