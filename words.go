@@ -14,7 +14,7 @@ func randomWords() (string, string) {
 	if err != nil {
 		panic(err)
 	}
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	// Read all words into a slice
 	var words []string
