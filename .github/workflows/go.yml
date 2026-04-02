@@ -1,0 +1,58 @@
+name: Go
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build
+        run: go build -v ./...
+      - name: Test
+        run: go test -v ./...
+      - name: Vet
+        run: go vet ./...
+
+  golangci-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - uses: golangci/golangci-lint-action@v7
+
+  build-raspberry-pi:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build for Raspberry Pi (linux/arm)
+        env:
+          GOOS: linux
+          GOARCH: arm
+          GOARM: "7"
+        run: go build -v -o strx-linux-arm7 .
+      - name: Build for Raspberry Pi (linux/arm64)
+        env:
+          GOOS: linux
+          GOARCH: arm64
+        run: go build -v -o strx-linux-arm64 .
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: strx-raspberry-pi
+          path: |
+            strx-linux-arm7
+            strx-linux-arm64
