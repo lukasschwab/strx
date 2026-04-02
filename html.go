@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"html/template"
 	"io"
+	"sort"
 )
 
 //go:embed templates/html.tmpl
@@ -29,6 +30,9 @@ func HTML(all map[string]string, to io.Writer) error {
 			URL:   url,
 		})
 	}
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].URL < rows[j].URL
+	})
 
 	err = tmpl.Execute(to, rows)
 	if err != nil {
