@@ -20,6 +20,8 @@ $ go install github.com/lukasschwab/strx@latest
 $ strx --port 3000
 ```
 
+By default, aliases are stored as flat files in your user config directory (e.g. `~/.config/strx/`).
+
 ## API
 
 1. `GET /` Display All Aliases
