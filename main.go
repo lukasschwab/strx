@@ -53,7 +53,7 @@ func loggingMiddleware(next http.Handler) http.Handler {
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v) //nolint:errcheck
+	json.NewEncoder(w).Encode(v)
 }
 
 func acceptsJSON(r *http.Request) bool {
@@ -104,7 +104,7 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 		alias = word1 + "-" + word2
 	}
 
-	urlStore.Set(alias, req.URL) //nolint:errcheck
+	urlStore.Set(alias, req.URL)
 	writeJSON(w, http.StatusOK, map[string]string{"alias": alias, "url": req.URL})
 }
 
