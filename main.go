@@ -88,9 +88,19 @@ func handleCreate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	req := new(Request)
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-		return
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request"})
+			return
+		}
+		req.URL = r.PostFormValue("url")
+		req.Alias = r.PostFormValue("alias")
 	}
 
 	if req.URL == "" {
